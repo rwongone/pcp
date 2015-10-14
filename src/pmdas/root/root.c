@@ -21,6 +21,7 @@
 #include "root.h"
 #include "lxc.h"
 #include "docker.h"
+#include "mesos.h"
 #include "domain.h"
 
 #ifndef S_IRWXU
@@ -84,6 +85,14 @@ static container_engine_t engines[] = {
 	.value_refresh	= lxc_value_refresh,
 	.name_matching	= lxc_name_matching,
     },
+    {
+    .name		= "mesos",
+	.setup		= mesos_setup,
+	.indom_changed	= mesos_indom_changed,
+	.insts_refresh	= mesos_insts_refresh,
+	.value_refresh	= mesos_value_refresh,
+	.name_matching	= mesos_name_matching,
+    }
 #endif
     { .name = NULL },
 };
