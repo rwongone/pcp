@@ -110,7 +110,8 @@ mesos_insts_refresh(container_engine_t *dp, pmInDom indom)
 				continue;
 		    cp->engine = dp;
 
-		    cmd = popen("head -n 1 /proc/%d/cgroup", cp->pid, "r");
+		    buffer = snprintf("head -n 1 /proc/%d/cgroup", cp->pid, 128);
+		    cmd = popen(buffer, "r");
 		    if (cmd && fgets(cgroup, sizeof(cgroup)-1, cmd)) {
 		    	// <number>:<directory>:/mesos/<cgroup_id>
 		    	sts = (int)(strchr(cgroup, '/') - cgroup) + 1; // index after first '/'
