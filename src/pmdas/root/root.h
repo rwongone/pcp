@@ -56,7 +56,7 @@ typedef int (*container_match_t)(struct container_engine *,
 typedef struct container_engine {
     char		*name;
     int			state;
-    char		path[60];
+    char		path[120];
     container_setup_t	setup;
     container_changed_t	indom_changed;
     container_insts_t	insts_refresh;
