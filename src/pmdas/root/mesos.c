@@ -113,6 +113,21 @@ mesos_insts_refresh(container_engine_t *dp, pmInDom indom)
     closedir(rundir);
 }
 
+static int
+mesos_values_changed(const char *path, container_t *values)
+{
+    struct stat		statbuf;
+
+    if (stat(path, &statbuf) != 0) {
+	memset(&values->stat, 0, sizeof(values->stat));
+	return 1;
+    }
+    if (!root_stat_time_differs(&statbuf, &values->stat))
+	return 0;
+    values->stat = statbuf;
+    return 1;
+}
+
 /*
  * Extract critical information (PID1, state) for a named container.
  * Name here is the unique identifier we've chosen to use for Mesos
