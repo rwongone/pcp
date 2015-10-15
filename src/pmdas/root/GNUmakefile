@@ -23,7 +23,7 @@ CONF_LINE	= "root	1	pipe	binary		$(PMDADIR)/$(CMDTARGET)"
 
 CFILES		= root.c
 ifeq "$(TARGET_OS)" "linux"
-CFILES		+= jsmn.c docker.c lxc.c
+CFILES		+= jsmn.c docker.c lxc.c mesos.c
 endif
 
 SCRIPTS		= Install Remove
