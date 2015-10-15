@@ -13,6 +13,7 @@
  */
 
 #include <sys/stat.h>
+#include <stdlib.h>
 #include <regex.h>
 #include "pmapi.h"
 #include "impl.h"
@@ -85,6 +86,9 @@ mesos_insts_refresh(container_engine_t *dp, pmInDom indom)
     struct dirent	*drp;
     container_t		*cp;
     int			sts;
+    FILE 		*cmd;
+    char 		cgroup[128];
+    char 		*buffer;
 
     if ((rundir = opendir(dp->path)) == NULL) {
 		if (pmDebug & DBG_TRACE_ATTR)
@@ -105,8 +109,19 @@ mesos_insts_refresh(container_engine_t *dp, pmInDom indom)
 		    if ((cp = calloc(1, sizeof(container_t))) == NULL)
 				continue;
 		    cp->engine = dp;
-		  //   snprintf(cp->cgroup, sizeof(cp->cgroup),
-				// "system.slice/mesos-%s.scope", path);
+
+		    cmd = popen("head -n 1 /proc/%d/cgroup", cp->pid, "r");
+		    if (cmd && fgets(cgroup, sizeof(cgroup)-1, cmd)) {
+		    	// <number>:<directory>:/mesos/<cgroup_id>
+		    	sts = (int)(strchr(cgroup, '/') - cgroup) + 1; // index after first '/'
+		    	buffer = (char*)malloc(strlen(cgroup)-sts+1);
+		    	memcpy(buffer, &cgroup[sts], strlen(cgroup)-sts);
+		    	buffer[strlen(cgroup)-sts] = '\0';
+		    	snprintf(cp->cgroup, sizeof(cp->cgroup), "%s", buffer); // mesos/<cgroup_id>
+		    } else {
+			    if (pmDebug & DBG_TRACE_ATTR)
+					fprintf(stderr, "%s: failed to find cgroup for %s\n", pmProgname, path);
+		    }
 		}
 		pmdaCacheStore(indom, PMDA_CACHE_ADD, path, cp);
     }
@@ -153,7 +168,7 @@ mesos_value_refresh(container_engine_t *dp,
     if ((fp = fopen(path, "r")) == NULL)
 		return -oserror();
 
-	// set values->name
+	// set container name property to Mesos task key, dash-delimited
 	if (regcomp(&regex, "[^-]*-[^-]*-(.*)-.*-.*-.*-.*-.*", 0))
 		__pmNotifyErr(LOG_DEBUG, "Failed to compile name regex.\n");
 	if (regexec(&regex, name, maxGroups, matchGroup, 0) == 0) {
