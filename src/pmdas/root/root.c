@@ -92,7 +92,7 @@ static container_engine_t engines[] = {
 	.insts_refresh	= mesos_insts_refresh,
 	.value_refresh	= mesos_value_refresh,
 	.name_matching	= mesos_name_matching,
-    }
+    },
 #endif
     { .name = NULL },
 };
