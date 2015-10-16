@@ -33,23 +33,24 @@ mesos_setup(container_engine_t *dp)
 	const char *mesos = getenv("PCP_MESOS_DIR");
     DIR			*rundir;
     char		*path;
+    char 		frameworksPath[120];
     struct dirent	*drp;
 
 	if (!mesos)
 		mesos = mesos_default;
 
-	snprintf(dp->path, sizeof(dp->path), "%s/meta/slaves/latest/frameworks", mesos);
+	snprintf(frameworksPath, sizeof(frameworksPath), "%s/meta/slaves/latest/frameworks", mesos);
 
-    if ((rundir = opendir(dp->path)) == NULL) {
+    if ((rundir = opendir(frameworksPath)) == NULL) {
    		if (pmDebug & DBG_TRACE_ATTR)
-		    fprintf(stderr, "%s: skipping mesos path %s\n", pmProgname, dp->path);
+		    fprintf(stderr, "%s: skipping mesos path %s\n", pmProgname, frameworksPath);
 		return;
     }
 
     while ((drp = readdir(rundir)) != NULL) {
 		if (*(path = &drp->d_name[0]) == '.')
 		    continue;
-		snprintf(dp->path, sizeof(dp->path), "%s/%s/executors", dp->path, path);
+		snprintf(dp->path, sizeof(dp->path), "%s/%s/executors", frameworksPath, path);
 		break;
 	}
 	dp->path[sizeof(dp->path)-1] = '\0';
