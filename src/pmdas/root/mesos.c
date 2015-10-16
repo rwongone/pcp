@@ -120,6 +120,8 @@ mesos_insts_refresh(container_engine_t *dp, pmInDom indom)
 		    	memcpy(buffer, &cgroup[sts], strlen(cgroup)-sts);
 		    	buffer[strlen(cgroup)-sts] = '\0';
 		    	snprintf(cp->cgroup, sizeof(cp->cgroup), "%s", buffer); // mesos/<cgroup_id>
+		    	if (pmDebug & DBG_TRACE_ATTR)
+					fprintf(stderr, "%s: found cgroup for %s: %s\n", pmProgname, path, cp->cgroup);
 		    } else {
 			    if (pmDebug & DBG_TRACE_ATTR)
 					fprintf(stderr, "%s: failed to find cgroup for %s\n", pmProgname, path);
