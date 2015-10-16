@@ -159,7 +159,6 @@ mesos_value_refresh(container_engine_t *dp,
 	size_t maxGroups = 2;
 	regex_t regex;
 	regmatch_t matchGroup[maxGroups];
-	char 	*matchResult;
 
     snprintf(path, sizeof(path), "%s/%s/runs/latest/pids/forked.pid", dp->path, name);
     if (!mesos_values_changed(path, values))
@@ -179,9 +178,9 @@ mesos_value_refresh(container_engine_t *dp,
 	regfree(&regex);
 
 	// set values->pid
-	fscanf(fp, "%d", &values->pid);
-
+	sts = fscanf(fp, "%d", &values->pid);
     fclose(fp);
+    
     if (sts < 0)
 		return sts;
 
