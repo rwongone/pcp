@@ -97,6 +97,22 @@ static container_engine_t engines[] = {
     { .name = NULL },
 };
 
+#ifndef HAVE_SETNS
+inline int
+setns(int fd, int nstype)
+{
+#ifdef __NR_setns
+	return syscall(__NR_setns, fd, nstype);
+#elif defined(__NR_set_ns)
+	return syscall(__NR_set_ns, fd, nstype);
+#else
+	errno = ENOSYS;
+	return -1;
+#endif
+}
+#define HAVE_SETNS
+#endif
+
 static void
 root_setup_containers(void)
 {

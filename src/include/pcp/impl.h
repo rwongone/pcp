@@ -39,6 +39,9 @@
 #ifdef HAVE_NETDB_H
 #include <netdb.h>
 #endif
+#ifndef HAVE_SETNS
+#include <sys/syscall.h>
+#endif
 
 /*
  * Thread-safe support ... #define to enable thread-safe protection of
@@ -1494,6 +1497,9 @@ PCP_CALL extern int __pmDiscoverServicesWithOptions(const char *,
 					   const volatile sig_atomic_t *,
 					   char ***);
 
+#ifndef HAVE_SETNS
+inline int setns(int, int);
+#endif
 
 #ifdef __cplusplus
 }
