@@ -107,8 +107,11 @@ mesos_insts_refresh(container_engine_t *dp, pmInDom indom)
 		if (sts != PMDA_CACHE_INACTIVE) {
 		    if (pmDebug & DBG_TRACE_ATTR)
 				fprintf(stderr, "%s: adding mesos container %s\n", pmProgname, path);
-		    if ((cp = calloc(1, sizeof(container_t))) == NULL)
+		    if ((cp = calloc(1, sizeof(container_t))) == NULL) {
+			    if (pmDebug & DBG_TRACE_ATTR)
+					fprintf(stderr, "%s: failed to allocate memory for %s\n", pmProgname, path);		    	
 				continue;
+		    }
 		    cp->engine = dp;
 
 		    buffer = snprintf("head -n 1 /proc/%d/cgroup", cp->pid, 128);
