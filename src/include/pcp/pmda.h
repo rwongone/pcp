@@ -786,6 +786,10 @@ PMDA_CALL extern int __pmdaSendRootPDUContainer(int, int, int, const char *, int
 PMDA_CALL extern int __pmdaRecvRootPDUContainer(int, int, void *, int);
 PMDA_CALL extern int __pmdaDecodeRootPDUContainer(void *, int, int *, char *, int);
 
+#ifndef HAVE_SETNS
+static inline int setns(int, int);
+#endif
+
 #ifdef __cplusplus
 }
 #endif
