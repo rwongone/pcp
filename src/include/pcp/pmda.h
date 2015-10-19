@@ -16,6 +16,8 @@
 #define PCP_PMDA_H
 
 #include <stdarg.h>
+#include <sched.h>
+#include "syscall.h"
 
 #ifdef __cplusplus
 extern "C" {
