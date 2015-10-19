@@ -302,7 +302,6 @@ extern "C" {
 /* interfaces used for Linux container support (namespaces) */
 #undef HAVE_SENDMSG
 #undef HAVE_RECVMSG
-#undef HAVE_SETNS
 
 /* if the PAPI_component_info_t struct has a 'disabled' variable */
 #undef HAVE_PAPI_DISABLED_COMP
