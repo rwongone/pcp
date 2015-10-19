@@ -16,6 +16,8 @@
 #include "pmda.h"
 #include "namespaces.h"
 
+#if defined(HAVE_SETNS)
+
 static int root_fdset[LINUX_NAMESPACE_COUNT];
 static int self_fdset[LINUX_NAMESPACE_COUNT];
 
@@ -192,6 +194,46 @@ container_close(linux_container_t *cp, int openfds)
     container_close_network(cp);
     return 0;
 }
+
+#else /* !HAVE_SETNS */
+
+/*
+ * without setns(2), these all do nothing (successfully)
+ */
+
+int
+container_lookup(int fd, linux_container_t *cp)
+{
+    (void)fd;
+    (void)cp;
+    return 0;
+}
+
+int
+container_nsenter(linux_container_t *cp, int nsflags, int *openfds)
+{
+    (void)openfds;
+    (void)nsflags;
+    (void)cp;
+    return 0;
+}
+
+int
+container_nsleave(linux_container_t *cp, int nsflags)
+{
+    (void)nsflags;
+    (void)cp;
+    return 0;
+}
+
+int
+container_close(linux_container_t *cp, int openfds)
+{
+    (void)openfds;
+    (void)cp;
+    return 0;
+}
+#endif /* !HAVE_SETNS */
 
 int
 container_open_network(linux_container_t *cp)

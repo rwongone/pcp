@@ -473,6 +473,7 @@ root_check_new_client(__pmFdSet *fdset)
 static int
 root_hostname(int pid, char *buffer, int *length)
 {
+#ifdef HAVE_SETNS
     static int utsfd = -1;
     char path[MAXPATHLEN];
     int fd, sts = 0;
@@ -499,6 +500,9 @@ root_hostname(int pid, char *buffer, int *length)
     }
     setns(utsfd, CLONE_NEWUTS);
     return sts;
+#else
+    return -EOPNOTSUPP;
+#endif
 }
 
 static int

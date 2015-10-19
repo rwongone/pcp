@@ -979,8 +979,12 @@ __pmServerSetFeature(__pmServerFeature wanted)
 	return 1;
     }
     if (wanted == PM_SERVER_FEATURE_CONTAINERS) {
+#if defined(HAVE_SETNS)
 	server_features |= (1 << wanted);
 	return 1;
+#else
+	return 0;
+#endif
     }
     return __pmSecureServerSetFeature(wanted);
 }
