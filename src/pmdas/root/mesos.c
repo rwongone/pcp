@@ -13,6 +13,7 @@
  */
 
 #include <sys/stat.h>
+#include <regex.h>
 #include "pmapi.h"
 #include "impl.h"
 #include "pmda.h"
@@ -81,13 +82,29 @@ jsmnstrdup(const char *js, jsmntok_t *tok, char **name)
 void
 mesos_setup(container_engine_t *dp)
 {
-	static const char *mesos_default = "/var/lib/mesos"; // or "/sys/fs/cgroup/memory/mesos" ?
+	static const char *mesos_default = "/var/lib/mesos";
 	const char *mesos = getenv("PCP_MESOS_DIR");
+    DIR			*rundir;
+    char		*path;
+    struct dirent	*drp;
 
 	if (!mesos)
 		mesos = mesos_default;
 
 	snprintf(dp->path, sizeof(dp->path), "%s/meta/slaves/latest/frameworks", mesos);
+
+    if ((rundir = opendir(dp->path)) == NULL) {
+   		if (pmDebug & DBG_TRACE_ATTR)
+		    fprintf(stderr, "%s: skipping mesos path %s\n", pmProgname, dp->path);
+		return;
+    }
+
+    while ((drp = readdir(rundir)) != NULL) {
+		if (*(path = &drp->d_name[0]) == '.')
+		    continue;
+		snprintf(dp->path, sizeof(dp->path), "%s/%s/executors", dp->path, path);
+		break;
+	}
 	dp->path[sizeof(dp->path)-1] = '\0';
 
 	if (pmDebug & DBG_TRACE_ATTR)
@@ -150,166 +167,6 @@ mesos_insts_refresh(container_engine_t *dp, pmInDom indom)
     closedir(rundir);
 }
 
-static int
-mesos_values_changed(const char *path, container_t *values)
-{
-    struct stat		statbuf;
-
-    if (stat(path, &statbuf) != 0) {
-		memset(&values->stat, 0, sizeof(values->stat));
-		return 1;
-    }
-    if (!root_stat_time_differs(&statbuf, &values->stat))
-		return 0;
-    values->stat = statbuf;
-    return 1;
-}
-
-static int
-mesos_values_extract(const char *js, jsmntok_t *t, size_t count,
-			int key, container_t *values)
-{
-    int		i, j;
-
-    if (count == 0)
-		return 0;
-    switch (t->type) {
-    case JSMN_PRIMITIVE:
-		return 1;
-    case JSMN_STRING:
-		/*
-		 * We're only interested in a handful of values:
-		 * "Name": "/jolly_sinoussi",
-		 * "State": { "Running": true, "Paused": false, "Restarting": false,
-		 *            "Pid": 32471 }
-		 */
-		if (key) {
-		    jsmntok_t	*value = t + 1;
-
-		    if (t->parent == 0) {	/* top-level: look for Name & State */
-				if (jsmneq(js, t, "Name") == 0) {
-				    jsmnstrdup(js, value, &values->name);
-				    values->uptodate++;
-				}
-				if (jsmneq(js, t, "State") == 0) {
-				    values->state = (value->type == JSMN_OBJECT);
-				    values->uptodate++;
-				}
-		    }
-		    else if (values->state) { /* pick out various stateful values */
-				int 	flag = values->flags;
-
-				if (pmDebug & DBG_TRACE_ATTR)
-				    __pmNotifyErr(LOG_DEBUG, "mesos_values_parse: state\n");
-
-				if (jsmneq(js, t, "Running") == 0)
-				    jsmnflag(js, value, &flag, CONTAINER_FLAG_RUNNING);
-				else if (jsmneq(js, t, "Paused") == 0)
-				    jsmnflag(js, value, &flag, CONTAINER_FLAG_PAUSED);
-				else if (jsmneq(js, t, "Restarting") == 0)
-				    jsmnflag(js, value, &flag, CONTAINER_FLAG_RESTARTING);
-				else if (jsmneq(js, t, "Pid") == 0) {
-				    if (jsmnint(js, value, &values->pid) < 0)
-						values->pid = -1;
-				    if (pmDebug & DBG_TRACE_ATTR)
-						__pmNotifyErr(LOG_DEBUG, "mesos_value PID=%d\n", values->pid);
-				}
-				values->flags = flag;
-		    }
-		}
-		return 1;
-	    case JSMN_OBJECT:
-		for (i = j = 0; i < t->size; i++) {
-		    j += mesos_values_extract(js, t+1+j, count-j, 1, values); /* key */
-		    j += mesos_values_extract(js, t+1+j, count-j, 0, values); /*value*/
-		}
-		values->state = 0;
-		return j + 1;
-    case JSMN_ARRAY:
-		for (i = j = 0; i < t->size; i++)
-		    j += mesos_values_extract(js, t+1+j, count-j, 0, values);
-		return j + 1;
-    default:
-		return 0;
-    }
-    return 0;
-}
-
-static int
-mesos_values_parse(FILE *fp, const char *name, container_t *values)
-{
-    static char		*js;
-    static int		jslen;
-    static int		tokcount;
-    static jsmntok_t	*tok;
-    jsmn_parser		p;
-    char		buf[BUFSIZ];
-    int			n, sts = 0, eof_expected = 0;
-
-    if (pmDebug & DBG_TRACE_ATTR)
-	__pmNotifyErr(LOG_DEBUG, "mesos_values_parse: name=%s\n", name);
-
-    if (!tok) {
-		tokcount = 128;
-		if ((tok = calloc(tokcount, sizeof(*tok))) == NULL)
-		    return -ENOMEM;
-    }
-    if (jslen)
-		jslen = 0;
-
-    jsmn_init(&p);
-    values->uptodate = 0;	/* values for this container not yet visible */
-    values->state = -1;		/* reset State key marker for this iteration */
-
-    for (;;) {
-		/* Read another chunk */
-		n = fread(buf, 1, sizeof(buf), fp);
-		if (n < 0) {
-		    if (pmDebug & DBG_TRACE_ATTR) {
-				fprintf(stderr, "%s: failed read on mesos %s config: %s\n",
-					pmProgname, name, osstrerror());
-				sts = -oserror();
-				break;
-		    }
-		}
-		if (n == 0) {
-		    if (!eof_expected) {
-				if (pmDebug & DBG_TRACE_ATTR)
-				    fprintf(stderr, "%s: unexpected EOF on %s config: %s\n",
-					    pmProgname, name, osstrerror());
-				sts = -EINVAL;
-				break;
-		    }
-		return 0;
-		}
-
-		if ((js = realloc(js, jslen + n + 1)) == NULL) {
-		    sts = -ENOMEM;
-		    break;
-		}
-		strncpy(js + jslen, buf, n);
-		jslen = jslen + n;
-
-	again:
-		n = jsmn_parse(&p, js, jslen, tok, tokcount);
-		if (n < 0) {
-		    if (n == JSMN_ERROR_NOMEM) {
-				tokcount = tokcount * 2;
-				if ((tok = realloc(tok, sizeof(*tok) * tokcount)) == NULL) {
-				    sts = -ENOMEM;
-				    break;
-				}
-				goto again;
-		    }
-		} else {
-		    sts = mesos_values_extract(js, tok, p.toknext, 0, values);
-		    eof_expected = 1;
-		}
-    }
-
-    return sts;
-}
-
 /*
  * Extract critical information (PID1, state) for a named container.
  * Name here is the unique identifier we've chosen to use for Mesos
@@ -322,15 +179,31 @@ mesos_value_refresh(container_engine_t *dp,
     int		sts;
     FILE	*fp;
     char	path[MAXPATHLEN];
+	size_t maxGroups = 2;
+	regex_t regex;
+	regmatch_t matchGroup[maxGroups];
+	char 	*matchResult;
 
-    snprintf(path, sizeof(path), "%s/%s/config.json", dp->path, name);
+    snprintf(path, sizeof(path), "%s/%s/runs/latest/pids/forked.pid", dp->path, name);
     if (!mesos_values_changed(path, values))
 		return 0;
     if (pmDebug & DBG_TRACE_ATTR)
 		__pmNotifyErr(LOG_DEBUG, "mesos_value_refresh: file=%s\n", path);
     if ((fp = fopen(path, "r")) == NULL)
 		return -oserror();
-    sts = mesos_values_parse(fp, name, values);
+
+	// set values->name
+	if (regcomp(&regex, "[^-]*-[^-]*-(.*)-.*-.*-.*-.*-.*"))
+		__pmNotifyErr(LOG_DEBUG, "Failed to compile name regex.\n");
+	if (regexec(&regex, name, maxGroups, matchGroup, 0) == 0) {
+		strncpy(values->name, &name[matchGroup[1].rm_so], 
+			matchGroup[1].rm_eo - matchGroup[1].rm_so);
+	}
+	regfree(&regex);
+
+	// set values->pid
+	fscanf(fp, "%d", &values->pid);
+
     fclose(fp);
     if (sts < 0)
 		return sts;
@@ -359,13 +232,21 @@ mesos_name_matching(struct container_engine *dp, const char *query,
 {
     unsigned int ilength, qlength, limit;
     int i, fuzzy = 0;
+    char *slashUsername;
 
     if (strcmp(query, username) == 0)
 		return 100;
-    if (username[0] == '/' && strcmp(query, username+1) == 0)
-		return 99;
     if (strcmp(query, instname) == 0)
+		return 99;
+	slashUsername = malloc(strlen(username));
+	for (i = 0; i < strlen(username); i++) {
+		slashUsername[i] = (username[i] == '/') ? '-' : username[i];
+	}
+	if (strcmp(query, slashUsername) == 0) {
+		free(slashUsername);
 		return 98;
+	}
+
     qlength = strlen(query);
     ilength = strlen(instname);
     /* find the shortest of the three boundary conditions */
